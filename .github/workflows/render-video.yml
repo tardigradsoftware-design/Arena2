@@ -1,0 +1,71 @@
+name: Render video
+
+on:
+  workflow_dispatch:
+    inputs:
+      composition:
+        description: Remotion composition
+        required: true
+        type: choice
+        default: VID001MirrorCheck
+        options:
+          - VID001MirrorCheck
+          - StudioIntro
+      profile:
+        description: Render profile
+        required: true
+        type: choice
+        default: preview
+        options:
+          - preview
+          - final
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y ffmpeg
+
+      - name: Install Remotion render browser
+        run: npx remotion browser ensure
+
+      - name: Render preview profile
+        if: ${{ inputs.profile == 'preview' }}
+        run: |
+          mkdir -p out
+          npx remotion render src/index.ts "${{ inputs.composition }}" "out/${{ inputs.composition }}-preview.mp4" --codec=h264 --crf=28 --concurrency=2 --scale=0.5
+          npm run check:video -- "out/${{ inputs.composition }}-preview.mp4"
+
+      - name: Render final profile
+        if: ${{ inputs.profile == 'final' }}
+        run: |
+          mkdir -p out
+          npx remotion render src/index.ts "${{ inputs.composition }}" "out/${{ inputs.composition }}-final.mp4" --codec=h264 --crf=20 --concurrency=2
+          npm run check:video -- "out/${{ inputs.composition }}-final.mp4"
+
+      - name: Upload MP4
+        uses: actions/upload-artifact@v7
+        with:
+          name: arena-motion-${{ inputs.composition }}-${{ inputs.profile }}-${{ github.run_number }}
+          path: out/*.mp4
+          if-no-files-found: error
+          retention-days: 7
