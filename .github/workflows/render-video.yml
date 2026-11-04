@@ -1,6 +1,16 @@
 name: Render video
 
 on:
+  push:
+    branches: ['arena/**']
+    paths:
+      - '.github/workflows/render-video.yml'
+      - 'src/Root.tsx'
+      - 'src/compositions/**'
+      - 'public/assets/**'
+      - 'public/audio/**'
+      - 'package.json'
+      - 'package-lock.json'
   workflow_dispatch:
     inputs:
       composition:
@@ -27,6 +37,9 @@ jobs:
   render:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      RENDER_COMPOSITION: ${{ inputs.composition || 'VID001MirrorCheck' }}
+      RENDER_PROFILE: ${{ inputs.profile || 'final' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -49,23 +62,23 @@ jobs:
         run: npx remotion browser ensure
 
       - name: Render preview profile
-        if: ${{ inputs.profile == 'preview' }}
+        if: ${{ env.RENDER_PROFILE == 'preview' }}
         run: |
           mkdir -p out
-          npx remotion render src/index.ts "${{ inputs.composition }}" "out/${{ inputs.composition }}-preview.mp4" --codec=h264 --crf=28 --concurrency=2 --scale=0.5
-          npm run check:video -- "out/${{ inputs.composition }}-preview.mp4"
+          npx remotion render src/index.ts "$RENDER_COMPOSITION" "out/${RENDER_COMPOSITION}-preview.mp4" --codec=h264 --crf=28 --concurrency=2 --scale=0.5
+          npm run check:video -- "out/${RENDER_COMPOSITION}-preview.mp4"
 
       - name: Render final profile
-        if: ${{ inputs.profile == 'final' }}
+        if: ${{ env.RENDER_PROFILE == 'final' }}
         run: |
           mkdir -p out
-          npx remotion render src/index.ts "${{ inputs.composition }}" "out/${{ inputs.composition }}-final.mp4" --codec=h264 --crf=20 --concurrency=2
-          npm run check:video -- "out/${{ inputs.composition }}-final.mp4"
+          npx remotion render src/index.ts "$RENDER_COMPOSITION" "out/${RENDER_COMPOSITION}-final.mp4" --codec=h264 --crf=20 --concurrency=2
+          npm run check:video -- "out/${RENDER_COMPOSITION}-final.mp4"
 
       - name: Upload MP4
         uses: actions/upload-artifact@v7
         with:
-          name: arena-motion-${{ inputs.composition }}-${{ inputs.profile }}-${{ github.run_number }}
+          name: arena-motion-${{ env.RENDER_COMPOSITION }}-${{ env.RENDER_PROFILE }}-${{ github.run_number }}
           path: out/*.mp4
           if-no-files-found: error
           retention-days: 7
